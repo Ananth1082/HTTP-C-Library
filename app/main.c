@@ -4,7 +4,7 @@ void getMonsterController(struct HTTPRequest *req, struct HTTPResponseWriter *re
 {
 	res->content_type = "application/json";
 	res->status_code = 200;
-	write_to_client(res, "{\"monsters:[\"foo\",\"bar\",\"foobar\"]\"}\n");
+	write_to_client(res, "{\"monsters\":[\"foo\",\"bar\",\"foobar\"]}\n");
 }
 
 int main() {

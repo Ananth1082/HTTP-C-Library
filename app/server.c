@@ -1,6 +1,5 @@
 #include "server.h"
 
-
 struct HTTPRouter *newHTTPRouter(const int port)
 {
 	struct HTTPRouter *router = malloc(sizeof(struct HTTPRouter));
@@ -16,7 +15,6 @@ struct HTTPRouter *newHTTPRouter(const int port)
 		return 1;
 	}
 
-	// Setting SO_REUSEADDR
 	int reuse = 1;
 	if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0)
 	{
@@ -125,11 +123,10 @@ int execute_routes(struct HTTPRouter *router, struct HTTPRequest *req, int fd)
 
 void parse_request(struct HTTPRequest *request, char *req)
 {
-	// Make a copy of the original request since strtok modifies the string
+
 	char *req_copy = strdup(req);
 	char *req_line = req_copy;
 
-	// Find the end of the first line
 	char *end_of_line = strstr(req_copy, "\r\n");
 	if (!end_of_line)
 	{
@@ -147,21 +144,13 @@ void parse_request(struct HTTPRequest *request, char *req)
 		return;
 	}
 	char *method = strdup(token);
-	if (!strcmp(method, "GET"))
+	request->method = getMethodInt(method);
+	free(method);
+	if (request->method == -1)
 	{
-		request->method = GET;
-	}
-	if (!strcmp(method, "POST"))
-	{
-		request->method = POST;
-	}
-	if (!strcmp(method, "PUT"))
-	{
-		request->method = PUT;
-	}
-	if (!strcmp(method, "DELETE"))
-	{
-		request->method = DELETE;
+		fprintf(stderr, "Invalid method");
+		free(req_copy);
+		return;
 	}
 	// Parse path
 	token = strtok(NULL, " ");
@@ -173,16 +162,15 @@ void parse_request(struct HTTPRequest *request, char *req)
 	}
 	request->path = strdup(token);
 
-	// Find the body in the original request
 	char *body_start = strstr(req, EOH);
 	if (body_start)
 	{
-		body_start += 4; // Skip past \r\n\r\n
+		body_start += 4;
 		request->body = strdup(body_start);
 	}
 	else
 	{
-		request->body = strdup(""); // Empty body
+		request->body = strdup("");
 	}
 
 	free(req_copy);
@@ -231,4 +219,45 @@ void write_to_client(struct HTTPResponseWriter *res, char *reply)
 	}
 
 	free(response);
+}
+
+char *getMethodStr(int method)
+{
+	switch (method)
+	{
+	case GET:
+		return "GET";
+	case POST:
+		return "POST";
+	case PUT:
+		return "POST";
+	case DELETE:
+		return "DELETE";
+	default:
+		return NULL;
+	}
+}
+
+int getMethodInt(char *method)
+{
+	if (!strcmp(method, "GET"))
+	{
+		return GET;
+	}
+	else if (!strcmp(method, "POST"))
+	{
+		return POST;
+	}
+	else if (!strcmp(method, "PUT"))
+	{
+		return PUT;
+	}
+	else if (!strcmp(method, "DELETE"))
+	{
+		return DELETE;
+	}
+	else
+	{
+		return -1;
+	}
 }
