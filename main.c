@@ -1,4 +1,4 @@
-#include "server.h"
+#include "lib/server.h"
 
 void getMonsterController(struct HTTPRequest *req, struct HTTPResponseWriter *res)
 {
