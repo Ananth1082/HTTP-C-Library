@@ -8,8 +8,9 @@ void getMonsterController(struct HTTPRequest *req, struct HTTPResponseWriter *re
 }
 
 int main() {
-  struct HTTPRouter *router= newHTTPRouter(8080);
+  struct HTTPRouter *router= newHTTPRouter(8080,2);
   register_route(router,GET,"/api/monsters",getMonsterController);
+  printf("Routes: %d\n",router->Routes[0]->method);
   listen_requests(router);
   return 0;
 }

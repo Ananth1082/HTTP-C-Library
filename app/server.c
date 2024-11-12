@@ -1,6 +1,8 @@
 #include "server.h"
 
-struct HTTPRouter *newHTTPRouter(const int port)
+sem_t smphr;
+
+struct HTTPRouter *newHTTPRouter(const int port, const int thread_count)
 {
 	struct HTTPRouter *router = malloc(sizeof(struct HTTPRouter));
 	if (!router)
@@ -45,52 +47,12 @@ struct HTTPRouter *newHTTPRouter(const int port)
 	router->server_fd = server_fd;
 	router->Routes = malloc(MAX_ROUTES * sizeof(struct HTTPRoute *));
 	router->route_count = 0;
+	router->thread_count = thread_count;
+	router->threads = malloc(router->thread_count * sizeof(pthread_t));
+	router->client_addr = malloc(router->thread_count * sizeof(struct sockaddr));
 	return router;
 }
 
-void listen_requests(struct HTTPRouter *router)
-{
-	while (1)
-	{
-		printf("Server listening for requests\n");
-		int client_addr_len = sizeof(struct sockaddr);
-
-		int fd = accept(router->server_fd, &router->client_addr, &client_addr_len);
-		printf("Client connected\n");
-
-		char *req = malloc(2024);
-		int req_size = recv(fd, req, 2024, 0);
-		if (req_size == 0)
-		{
-			printf("Empty request");
-			free(req);
-			continue;
-		}
-		req[req_size] = '\0';
-
-		struct HTTPRequest *req_parsed = malloc(sizeof(struct HTTPRequest));
-		parse_request(req_parsed, req);
-		free(req);
-		if (!req_parsed)
-		{
-			printf("Invalid request\n");
-			close(fd);
-			continue;
-		}
-
-		printf("\nRequest details:\n\tPATH: %s\n\tMETHOD: %d\n\tBODY: %s\n", req_parsed->path, req_parsed->method, req_parsed->body);
-
-		if (!execute_routes(router, req_parsed, fd))
-		{
-			printf("Not found 404 error\n");
-		}
-		free(req_parsed->path);
-		free(req_parsed->body);
-		free(req_parsed);
-		close(fd);
-	}
-	close(router->server_fd);
-}
 
 void register_route(struct HTTPRouter *router, const int method, const char *path, controller_type ctrl)
 {
@@ -104,6 +66,7 @@ void register_route(struct HTTPRouter *router, const int method, const char *pat
 	new_route->path = strdup(path);
 	new_route->controller = ctrl;
 	router->Routes[router->route_count++] = new_route;
+	
 }
 
 int execute_routes(struct HTTPRouter *router, struct HTTPRequest *req, int fd)
@@ -120,6 +83,7 @@ int execute_routes(struct HTTPRouter *router, struct HTTPRequest *req, int fd)
 	}
 	return 0;
 }
+
 
 void parse_request(struct HTTPRequest *request, char *req)
 {
@@ -175,6 +139,71 @@ void parse_request(struct HTTPRequest *request, char *req)
 
 	free(req_copy);
 }
+
+void thread_function(void* args) {
+	struct HTTPRouter *router = (struct HTTPRouter*) args;
+	accept_request(router);
+	sem_post(&smphr);
+}
+
+void accept_request(struct HTTPRouter *router)
+{
+	int client_addr_len = sizeof(struct sockaddr);
+
+	int fd = accept(router->server_fd, &router->client_addr, &client_addr_len);
+	printf("Client connected\n");
+
+	char *req = malloc(2024);
+	int req_size = recv(fd, req, 2024, 0);
+	if (req_size == 0)
+	{
+		printf("Empty request");
+		free(req);
+		return;
+	}
+	req[req_size] = '\0';
+
+	struct HTTPRequest *req_parsed = malloc(sizeof(struct HTTPRequest));
+	parse_request(req_parsed, req);
+	free(req);
+	if (!req_parsed)
+	{
+		printf("Invalid request\n");
+		close(fd);
+		return;
+	}
+
+	printf("\nRequest details:\n\tPATH: %s\n\tMETHOD: %d\n\tBODY: %s\n", req_parsed->path, req_parsed->method, req_parsed->body);
+
+	if (!execute_routes(router, req_parsed, fd))
+	{
+		printf("Not found 404 error\n");
+	}
+	free(req_parsed->path);
+	free(req_parsed->body);
+	free(req_parsed);
+	close(fd);
+}
+void listen_requests(struct HTTPRouter *router)
+{
+	
+	sem_init(&smphr, 0, router->thread_count);
+	printf("Server listening for requests\n");
+	while (1)
+	{
+		for (int i = 0; i < router->thread_count; i++)
+		{
+			sem_wait(&smphr);
+			if (pthread_create(&router->threads[i],NULL,thread_function,(void*)router)!=1) {
+				perror("Failed to create thread\n");
+			}
+		}
+	}
+	close(router->server_fd);
+	sem_destroy(&smphr);
+}
+
+
 
 void write_to_client(struct HTTPResponseWriter *res, char *reply)
 {

@@ -1,5 +1,6 @@
 #ifndef SERVER_H
 #define SERVER_H
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/socket.h>
@@ -8,6 +9,9 @@
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
+#include <pthread.h>
+#include <semaphore.h>
+
 #define MAX_BODY_SIZE 2048
 #define MAX_ROUTES 10
 #define EOH "\r\n\r\n"
@@ -16,6 +20,8 @@
 #define POST 2
 #define PUT 3
 #define DELETE 4
+
+
 
 struct HTTPResponseWriter
 {
@@ -45,11 +51,13 @@ struct HTTPRouter
 	struct sockaddr_in server_addr;
 	int server_fd;
 	struct HTTPRoute **Routes;
-	struct sockaddr_in client_addr;
+	struct sockaddr_in *client_addr;
 	int route_count;
+	int thread_count;
+	pthread_t *threads;
 };
 
-struct HTTPRouter *newHTTPRouter(const int port);
+struct HTTPRouter *newHTTPRouter(const int port, int thread_count);
 void listen_requests(struct HTTPRouter *router);
 void register_route(struct HTTPRouter *router, const int method, const char *path, controller_type ctrl);
 void write_to_client(struct HTTPResponseWriter *res, char *reply);
