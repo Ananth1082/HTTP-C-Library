@@ -149,8 +149,8 @@ void thread_function(void* args) {
 void accept_request(struct HTTPRouter *router)
 {
 	int client_addr_len = sizeof(struct sockaddr);
-
-	int fd = accept(router->server_fd, &router->client_addr, &client_addr_len);
+	struct sockaddr_in* c_addr;
+	int fd = accept(router->server_fd,c_addr , &client_addr_len);
 	printf("Client connected\n");
 
 	char *req = malloc(2024);
